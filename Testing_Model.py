@@ -10,7 +10,6 @@ from Camera import get_input
 
 img_size = [480, 366]
 
-#gradcam_model = saving.load_model("PokemonGrader_EfficientNetV2B0_GradCam.keras")
 full_model    = saving.load_model("PokemonGrader_EfficientNetV2B0_V2-Model.keras")
 
 backbone      = full_model.get_layer("efficientnetv2-b0")
@@ -68,8 +67,8 @@ def grade_card(full_model, gradcam_model):
     back_restored = img_back[:, :half_w]
 
     # (Optional) show them
-    cv2.imshow("Front Restored", front_restored)
-    cv2.imshow("Back Restored", back_restored)
+    # cv2.imshow("Front Restored", front_restored)
+    # cv2.imshow("Back Restored", back_restored)
 
     img_front = cv2.resize(front_restored, (img_size[0] // 2, img_size[1]))
     img_back  = cv2.resize(back_restored,  (img_size[0] // 2, img_size[1]))

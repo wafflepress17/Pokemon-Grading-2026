@@ -17,10 +17,10 @@ import tensorflow as tf
 X = []
 y = []
 img_size =[480,366]
-grade_list = [1,2,3,4,5,6,7,8,9,10]
+grade_list = [1,2,3,4,5,6,7,8,9,10] #How many grades there are
 minus_label=1
 
-for u in grade_list:
+for u in grade_list: #Reading all the images and categorising them
     text_files_front = glob.glob("Data/Grade " + str(u) + "/front/*.jpg")
     text_files_back = glob.glob("Data/Grade " + str(u) + "/back/*.jpg")
 
@@ -30,59 +30,60 @@ for u in grade_list:
         img_back = cv2.imread(text_files_back[z])
         img_front = cv2.imread(text_files_front[z])
 
-        img_front = cv2.cvtColor(img_front, cv2.COLOR_BGR2RGB)
+        img_front = cv2.cvtColor(img_front, cv2.COLOR_BGR2RGB) #CV2 reads in BGR so we turn it back into RGB
         img_back = cv2.cvtColor(img_back, cv2.COLOR_BGR2RGB)
 
-        img_width = img_size[0] // 2
+        img_width = img_size[0] // 2 #Actual card size is approximately 5:7 which is 240 x 366
         img_height = img_size[1]
 
-        img_back = cv2.resize(img_back, (img_width, img_height))
+        img_back = cv2.resize(img_back, (img_width, img_height)) #Images are not 240 x 366 so we resize them to it
         img_front = cv2.resize(img_front, (img_width, img_height))
 
-        combined = cv2.hconcat([img_front, img_back])
+        combined = cv2.hconcat([img_front, img_back]) # Horizontally combine
 
+        # Delete
         # combined = preprocess_input(combined)
 
-        X.append(combined)
-        y.append(u - minus_label)
+        X.append(combined) #Append combined images
+        y.append(u - minus_label) #Labels
 
 X = np.array(X)
 y = np.array(y)
 
-X_train, X_test, y_train, y_test = (train_test_split(
+X_train, X_test, y_train, y_test = (train_test_split( #Split data by 80/20
     X,y,test_size=0.2,random_state=42, stratify=y))
 
-X_tr, X_val, y_tr, y_val = train_test_split(
+X_tr, X_val, y_tr, y_val = train_test_split( #Prevent data leakage
     X_train, y_train,
     test_size=0.2,
     random_state=42,
     stratify=y_train
 )
 
-def augment_image(img):
+def augment_image(img): #Augments images to get more data
     img = tf.cast(img, tf.float32)
-    img = tf.image.random_flip_left_right(img)
     img = tf.image.random_brightness(img, max_delta=0.15)
     img = tf.image.random_contrast(img, lower=0.85, upper=1.15)
     img = tf.image.random_saturation(img, lower=0.85, upper=1.15)
 
-    # Add small random rotation via tf.keras.layers
+    #Adding small random rotation
     img = tf.keras.layers.RandomRotation(0.05)(
         tf.expand_dims(img, 0), training=True
     )[0]
 
-    # Random zoom
+    #Random zoom
     img = tf.keras.layers.RandomZoom(0.05)(
         tf.expand_dims(img, 0), training=True
     )[0]
 
+    #Pixels stay between 0-255
     img = tf.clip_by_value(img, 0, 255)
     return img.numpy()
 
 augmented_X = []
 augmented_y = []
 
-for i in range(len(X_tr)):
+for i in range(len(X_tr)): #Augmenting the cards and appending it
     # Always keep the original
     augmented_X.append(X_tr[i])
     augmented_y.append(y_tr[i])
@@ -92,21 +93,22 @@ for i in range(len(X_tr)):
         augmented_X.append(augment_image(X_tr[i]))
         augmented_y.append(y_tr[i])
 
-X_tr = np.array(augmented_X)
+X_tr = np.array(augmented_X) #Append it to training data
 y_tr = np.array(augmented_y)
 
-print(f"Training samples after augmentation: {len(X_tr)}")
+print(f"Training samples after augmentation: {len(X_tr)}") #How many samples we have after augmentation
 
 base_model = EfficientNetV2B0(
-    include_top=False,
+    include_top=False, #False because it uses 1000 classes and we add our own head
     weights="imagenet",
     input_tensor=None,
-    input_shape=(366,480,3),
+    input_shape=(366,480,3), #Input requirements
     pooling=None,
-    include_preprocessing=True,
+    include_preprocessing=True, #No preprocessing_input(img) needed because model does it automatically
     name="efficientnetv2-b0",
 )
 
+# Freezes layers because weights don't change, we want to keep its current knoowledge
 base_model.trainable = False
 
 inputs = Input(shape=(366, 480, 3))
@@ -137,18 +139,18 @@ hist = model.fit(
     validation_data=(X_val, y_val)
 )
 
-# After hist1 completes, unfreeze top layers
-base_model.trainable = True
-for layer in base_model.layers[:-30]:
-    layer.trainable = False   # keep early layers frozen
+#After hist1 completes, unfreeze top layers for fine tuning
+base_model.trainable = True #Learns pokemon card features too
+for layer in base_model.layers[:-30]: #Last 30 layers
+    layer.trainable = False   #Keep early layers frozen
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), #New learning rate
     loss="sparse_categorical_crossentropy",
     metrics=["accuracy"]
 )
 
-hist2 = model.fit(
+hist2 = model.fit( #Model
     X_tr, y_tr,
     batch_size=16,
     epochs=20,
