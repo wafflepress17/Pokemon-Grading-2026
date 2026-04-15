@@ -133,17 +133,11 @@ model.compile(
     metrics=[tf.keras.metrics.MeanAbsoluteError(name="mae")]
 )
 
-callbacks = [
-    tf.keras.callbacks.EarlyStopping(patience=7, restore_best_weights=True),
-    tf.keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=3, verbose=1),
-]
-
 hist = model.fit(
     X_tr, y_tr,
     batch_size=16,
     epochs=20,
     validation_data=(X_val, y_val),
-    callbacks=callbacks
 )
 
 #After hist1 completes, unfreeze last layers for fine tuning
@@ -162,7 +156,6 @@ hist2 = model.fit( #Model
     batch_size=16,
     epochs=20,
     validation_data=(X_val, y_val),
-    callbacks=callbacks
 )
 
 plt.plot(hist.history["mae"]     + hist2.history["mae"],     label="train MAE")

@@ -31,27 +31,38 @@ gradcam_cnn_model = tf.keras.Model(
 def make_gradcam_heatmap(img_array, gradcam_model, pred_index=None):
     img_t = tf.cast(img_array, tf.float32)
 
+    # compute the gradient of the top predicted class for our input image
+    # with respect to the activations of the last conv layer
     with tf.GradientTape() as tape:
-        # Both outputs come from ONE forward pass — gradient chain is intact
         conv_outputs, full_preds = gradcam_model(img_t, training=False)
         tape.watch(conv_outputs)
         if pred_index is None:
             pred_index = int(tf.argmax(full_preds[0]))
         class_score = full_preds[:, pred_index]
 
+    #This is the gradient of the output neuron (top predicted or chosen)
+    #with regard to the output feature map of the last conv layer
     grads = tape.gradient(class_score, conv_outputs)
 
     if grads is None:
         raise ValueError("Gradients are None.")
 
+    # This is a vector where each entry is the mean intensity of the gradient
+    # over a specific feature map channel
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    # We multiply each channel in the feature map array
+    # by "how important this channel is" with regard to the top predicted class
+    # then sum all the channels to obtain the heatmap class activation
     heatmap      = conv_outputs[0] @ pooled_grads[..., tf.newaxis]
     heatmap      = tf.squeeze(heatmap)
+
+    # For visualization purpose, we will also normalize the heatmap between 0 & 1
     heatmap      = tf.maximum(heatmap, 0)
     heatmap      = heatmap / (tf.math.reduce_max(heatmap) + 1e-8)
     return heatmap.numpy()
 
-
+#Overlays heatmap onto image
 def overlay_gradcam(img_rgb, heatmap, alpha=0.4):
     h, w            = img_rgb.shape[:2]
     heatmap_resized = cv2.resize(heatmap, (w, h))
@@ -60,7 +71,7 @@ def overlay_gradcam(img_rgb, heatmap, alpha=0.4):
     return cv2.addWeighted(img_rgb, 1 - alpha, heatmap_colored, alpha, 0)
 
 
-def grade_card(full_model, gradcam_model):
+def grade_card(model, gradcam_model,efficient):
     img_front = cv2.imread("frontcaptured_image.png")
     img_back  = cv2.imread("backcaptured_image.png")
 
@@ -81,19 +92,19 @@ def grade_card(full_model, gradcam_model):
     img_back  = cv2.resize(back_restored,  (img_size[0] // 2, img_size[1]))
 
     combined     = cv2.hconcat([img_front, img_back])
-    if "efficientnet" in full_model.name.lower():
+    #img_array = np.expand_dims(combined, axis=0)
+    if efficient:
         #img_array = preprocess_input(combined.astype(np.float32))
         img_array = np.expand_dims(combined, axis=0)
     else:
         combined_pre = combined / 255.0
         img_array = np.expand_dims(combined_pre, axis=0)
 
-    #combined_pre = preprocess_input(combined.astype(np.float32))
-    #img_array    = np.expand_dims(combined, axis=0)  # (1, 366, 480, 3)
-    # grade_card uses full_model for prediction, gradcam_model for heatmaps
-    predictions = full_model.predict(img_array, verbose=0)
+    predictions = model.predict(img_array, verbose=0)
     grade = int(np.argmax(predictions[0])) + 1
     confidence = predictions[0][grade - 1] * 100
+
+    #Second choice
     second_idx = int(np.argsort(predictions[0])[::-1][1])
 
     print(f"Predicted Grade: {grade}/10")
@@ -105,6 +116,7 @@ def grade_card(full_model, gradcam_model):
     overlay_pred   = overlay_gradcam(combined, heatmap_pred)
     overlay_second = overlay_gradcam(combined, heatmap_second)
 
+    #Plotting it
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     fig.suptitle(
         f"Predicted Grade: {grade}/10  |  Confidence: {confidence:.1f}%",
@@ -134,6 +146,6 @@ def grade_card(full_model, gradcam_model):
 while True:
     get_input()
     print("EfficientNetV2-B0 Model")
-    grade_card(efficient_model, gradcam_efficient_model)
+    grade_card(efficient_model, gradcam_efficient_model,True)
     print("Normal CNN Model")
-    grade_card(cnn_model, gradcam_cnn_model)
+    grade_card(cnn_model, gradcam_cnn_model, False)
