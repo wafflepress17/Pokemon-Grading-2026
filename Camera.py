@@ -5,7 +5,7 @@ import keyboard
 
 def camerapicture(name):
     # Initialize webcam (0 = default camera)
-    cam = VideoCapture(0) #this is very slow, find a way to make more efficient
+    cam = VideoCapture(0)
 
     # Capture one frame
     ret, frame = cam.read()

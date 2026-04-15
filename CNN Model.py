@@ -11,7 +11,7 @@ from tensorflow.keras import models, layers, losses, saving, Input
 from Camera import get_input
 X = []
 y = []
-img_size =[240,183]
+img_size =[480,366]
 grade_list = [1,2,3,4,5,6,7,8,9,10]
 minus_label =1
 
@@ -24,6 +24,9 @@ for u in grade_list: #goes through all the labels
         img_back = cv2.imread(text_files_back[z])
         img_front = cv2.imread(text_files_front[z])
 
+        img_front = cv2.cvtColor(img_front, cv2.COLOR_BGR2RGB) #CV2 reads in BGR so we turn it back into RGB
+        img_back = cv2.cvtColor(img_back, cv2.COLOR_BGR2RGB)
+
         img_width = img_size[0] // 2
         img_height = img_size[1]
 
@@ -35,7 +38,7 @@ for u in grade_list: #goes through all the labels
 
         combined = combined / 255.0
         X.append(combined)
-        y.append((u - 1) // 2)
+        y.append((u - 1))
 
 X = np.array(X)
 y = np.array(y)
@@ -52,7 +55,7 @@ x = layers.MaxPooling2D((2, 2))(x)
 x = layers.Flatten()(x)
 x = layers.Dense(128, activation='relu')(x)
 
-outputs = layers.Dense(len(grade_list)//2, activation='softmax')(x)
+outputs = layers.Dense(len(grade_list), activation='softmax')(x)
 
 model = models.Model(inputs, outputs)
 

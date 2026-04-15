@@ -105,7 +105,7 @@ def grade_card(model, gradcam_model,efficient):
     confidence = predictions[0][grade - 1] * 100
 
     #Second choice
-    second_idx = int(np.argsort(predictions[0])[::-1][1])
+    second_idx = int(np.argsort(predictions[0])[-2])
 
     print(f"Predicted Grade: {grade}/10")
     print(f"Confidence: {confidence:.1f}%")
