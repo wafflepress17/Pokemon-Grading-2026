@@ -45,8 +45,7 @@ for u in grade_list: #Reading all the images and categorising them
         # combined = preprocess_input(combined)
 
         X.append(combined) #Append combined images
-        y.append(u - minus_label) #Labels
-
+        y.append((u - 1) // 2)
 X = np.array(X)
 y = np.array(y)
 
@@ -92,6 +91,10 @@ for i in range(len(X_tr)): #Augmenting the cards and appending it
     for _ in range(4):
         augmented_X.append(augment_image(X_tr[i]))
         augmented_y.append(y_tr[i])
+        # if y_tr[i] % 2 == 0:
+        #     augmented_y.append(y_tr[i] - 1)
+        # else:
+        #     augmented_y.append(y_tr[i])
 
 X_tr = np.array(augmented_X) #Append it to training data
 y_tr = np.array(augmented_y)
@@ -121,7 +124,7 @@ x = layers.Dropout(0.5)(x)
 x = layers.Dense(128, activation="relu",
                  kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 x = layers.Dropout(0.4)(x)
-outputs = layers.Dense(10, activation="softmax")(x)
+outputs = layers.Dense(len(grade_list)//2, activation="softmax")(x)
 
 model = models.Model(inputs, outputs)
 
