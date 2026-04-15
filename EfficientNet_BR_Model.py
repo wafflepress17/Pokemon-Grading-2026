@@ -1,6 +1,8 @@
-# EfficientNetV2-B0 Code
+# Including regression to EfficientNetV2-B0 Model
 
 import glob
+from gc import callbacks
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,23 +43,20 @@ for u in grade_list: #Reading all the images and categorising them
 
         combined = cv2.hconcat([img_front, img_back]) # Horizontally combine
 
-        # Delete
-        # combined = preprocess_input(combined)
-
         X.append(combined) #Append combined images
-        y.append(u - minus_label) #Labels
+        y.append(float(u))
 
 X = np.array(X)
-y = np.array(y)
+y = np.array(y, dtype=np.float32)
 
 X_train, X_test, y_train, y_test = (train_test_split( #Split data by 80/20
-    X,y,test_size=0.2,random_state=42, stratify=y))
+    X,y,test_size=0.2,random_state=42, stratify=y.astype(int)))
 
 X_tr, X_val, y_tr, y_val = train_test_split( #Prevent data leakage
     X_train, y_train,
     test_size=0.2,
     random_state=42,
-    stratify=y_train
+    stratify=y_train.astype(int)
 )
 
 def augment_image(img): #Augments images to get more data
@@ -94,7 +93,7 @@ for i in range(len(X_tr)): #Augmenting the cards and appending it
         augmented_y.append(y_tr[i])
 
 X_tr = np.array(augmented_X) #Append it to training data
-y_tr = np.array(augmented_y)
+y_tr = np.array(augmented_y, dtype=np.float32)
 
 print(f"Training samples after augmentation: {len(X_tr)}") #How many samples we have after augmentation
 
@@ -121,22 +120,30 @@ x = layers.Dropout(0.5)(x)
 x = layers.Dense(128, activation="relu",
                  kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 x = layers.Dropout(0.4)(x)
-outputs = layers.Dense(10, activation="softmax")(x)
+raw = layers.Dense(1, activation="sigmoid")(x)
+outputs = layers.Lambda(lambda t: t * 9.0 + 1.0, name="grade_output")(raw)
 
 model = models.Model(inputs, outputs)
 
 model.summary()
 
-model.compile(optimizer='adam',
-                loss='sparse_categorical_crossentropy',#loss for multiple classification
-                # a way to measure how wrong a classifier is when predicting one correct class out of many. - 0-9
-                metrics=['accuracy'])
+model.compile(
+    optimizer="adam",
+    loss="mse",
+    metrics=[tf.keras.metrics.MeanAbsoluteError(name="mae")]
+)
+
+callbacks = [
+    tf.keras.callbacks.EarlyStopping(patience=7, restore_best_weights=True),
+    tf.keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=3, verbose=1),
+]
 
 hist = model.fit(
     X_tr, y_tr,
     batch_size=16,
     epochs=20,
-    validation_data=(X_val, y_val)
+    validation_data=(X_val, y_val),
+    callbacks=callbacks
 )
 
 #After hist1 completes, unfreeze last layers for fine tuning
@@ -145,34 +152,44 @@ for layer in base_model.layers[:-30]: #Last 30 layers
     layer.trainable = False   #Keep early layers frozen
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), #New learning rate
-    loss="sparse_categorical_crossentropy",
-    metrics=["accuracy"]
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    loss="mse",
+    metrics=[tf.keras.metrics.MeanAbsoluteError(name="mae")]
 )
 
 hist2 = model.fit( #Model
     X_tr, y_tr,
     batch_size=16,
     epochs=20,
-    validation_data=(X_val, y_val)
+    validation_data=(X_val, y_val),
+    callbacks=callbacks
 )
 
-plt.plot(hist.history["accuracy"] + hist2.history["accuracy"],     label="accuracy")
-plt.plot(hist.history["val_accuracy"] + hist2.history["val_accuracy"], label="val_accuracy")
+plt.plot(hist.history["mae"]     + hist2.history["mae"],     label="train MAE")
+plt.plot(hist.history["val_mae"] + hist2.history["val_mae"], label="val MAE")
+plt.axvline(len(hist.history["mae"]) - 1,
+            linestyle="--", color="gray", label="fine-tune start")
 plt.xlabel("Epoch")
-plt.ylabel("Accuracy")
-plt.ylim([0, 1])
+plt.ylabel("Mean Absolute Error (grades)")
 plt.legend(loc="lower right")
+plt.tight_layout()
 plt.show()
 
-test_loss, test_acc = model.evaluate(X_test, y_test, verbose=2)
-print(f"Test loss: {test_loss}  Test accuracy: {test_acc}")
+test_loss, test_mae = model.evaluate(X_test, y_test, verbose=2)
+print(f"Test loss: {test_loss}  Test accuracy: {test_mae}")
 
-# Predictions — argmax instead of > 0.5
-y_pred = np.argmax(model.predict(X_test), axis=1)
+# Predictions
+y_pred_raw    = model.predict(X_test).flatten()
+y_pred        = np.clip(np.round(y_pred_raw), 1, 10).astype(int)
+y_test_int    = y_test.astype(int)
+
+exact_acc     = np.mean(y_pred == y_test_int)
+within_1_acc  = np.mean(np.abs(y_pred - y_test_int) <= 1)
+print(f"Exact grade accuracy:  {exact_acc*100:.1f}%")
+print(f"Within ±1 grade:       {within_1_acc*100:.1f}%")
 
 # Confusion matrix — same as your code
-conf_matrix = metrics.confusion_matrix(y_test, y_pred)
+conf_matrix = metrics.confusion_matrix(y_test_int, y_pred)
 print("Confusion Matrix:")
 print(conf_matrix)
 
@@ -182,5 +199,3 @@ disp = metrics.ConfusionMatrixDisplay(
 )
 disp.plot()
 plt.show()
-
-model.save("PokemonGrader_EfficientNetV2B0_V2-Model.keras")

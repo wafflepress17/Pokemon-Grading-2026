@@ -6,7 +6,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-from tensorflow.keras import models, layers, losses, saving
+from tensorflow.keras import models, layers, losses, saving, Input
 
 from Camera import get_input
 X = []
@@ -43,18 +43,19 @@ y = np.array(y)
 
 X_train, X_test, y_train, y_test = (train_test_split(X,y,test_size=0.2,random_state=42))
 
+inputs = Input(shape=(img_size[1], img_size[0], 3))
+x = layers.Conv2D(16, (3, 3), activation='relu')(inputs)
+x = layers.MaxPooling2D((2, 2))(x)
+x = layers.Conv2D(32, (3, 3), activation='relu')(x)
+x = layers.MaxPooling2D((2, 2))(x)
+x = layers.Conv2D(64, (3, 3), activation='relu')(x)
+x = layers.MaxPooling2D((2, 2))(x)
+x = layers.Flatten()(x)
+x = layers.Dense(128, activation='relu')(x)
 
-model = models.Sequential()
-model.add(layers.InputLayer(input_shape=(img_size[0], img_size[1], 3)))
-model.add(layers.Conv2D(16, (3, 3), activation='relu'))  # relu: whether to fire neuron or not
-model.add(layers.MaxPooling2D((2, 2)))  # simplifies through 2x2
-model.add(layers.Conv2D(32, (3, 3), activation='relu'))  # increase filters to look for more complex patterns
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Flatten())  # makes into list
-model.add(layers.Dense(128, activation='relu'))  # how many neurons should be used
-model.add(layers.Dense(len(grade_list), activation='softmax'))  # softmax is for multiple classification
+outputs = layers.Dense(len(grade_list), activation='softmax')(x)
+
+model = models.Model(inputs, outputs)
 
 model.summary()
 
@@ -105,31 +106,31 @@ model.save("Pokemon_Grading_CNN-Model.keras")
 #####################################################
 
 
-while True:
-    get_input() #saves the picture from camera
-    new_model = saving.load_model("Pokemon_Grading_CNN-Model.keras")
-
-    def image_predict(new_model):
-
-        img_test_back = cv2.imread("backcaptured_image.png")
-        img_test_front = cv2.imread("frontcaptured_image.png")
-        img_width = img_size[0] // 2
-        img_height = img_size[1]
-
-        img_test_back = cv2.resize(img_test_back, (img_width, img_height))
-        img_test_front = cv2.resize(img_test_front, (img_width, img_height))
-
-        combined = cv2.hconcat([img_test_front, img_test_back])
-        cv2.imshow("Image", combined)
-
-
-
-        combined = combined / 255.0
-        combined = combined.reshape(1, img_size[1], img_size[0], 3)
-        pred = np.argmax(new_model.predict(combined), axis=1)
-        print("prediction:" +str (pred[0] + minus_label))
-
-    image_predict(new_model)
+# while True:
+#     get_input() #saves the picture from camera
+#     new_model = saving.load_model("Pokemon_Grading_CNN-Model.keras")
+#
+#     def image_predict(new_model):
+#
+#         img_test_back = cv2.imread("backcaptured_image.png")
+#         img_test_front = cv2.imread("frontcaptured_image.png")
+#         img_width = img_size[0] // 2
+#         img_height = img_size[1]
+#
+#         img_test_back = cv2.resize(img_test_back, (img_width, img_height))
+#         img_test_front = cv2.resize(img_test_front, (img_width, img_height))
+#
+#         combined = cv2.hconcat([img_test_front, img_test_back])
+#         cv2.imshow("Image", combined)
+#
+#
+#
+#         combined = combined / 255.0
+#         combined = combined.reshape(1, img_size[1], img_size[0], 3)
+#         pred = np.argmax(new_model.predict(combined), axis=1)
+#         print("prediction:" +str (pred[0] + minus_label))
+#
+#     image_predict(new_model)
 
 
 ############################################

@@ -10,15 +10,22 @@ from Camera import get_input
 
 img_size = [480, 366]
 
-full_model    = saving.load_model("PokemonGrader_EfficientNetV2B0_V2-Model.keras")
+efficient_model    = saving.load_model("PokemonGrader_EfficientNetV2B0_V2-Model.keras")
+cnn_model = saving.load_model("Pokemon_Grading_CNN-Model.keras")
 
-backbone      = full_model.get_layer("efficientnetv2-b0")
-conv_layer    = backbone.get_layer("top_activation")
+
+backbone      = efficient_model.get_layer("efficientnetv2-b0")
+en_conv_layer    = backbone.get_layer("top_activation")
 
 # Build within backbone's own graph — avoids the cross-graph Keras 3 error
-gradcam_model = tf.keras.Model(
+gradcam_efficient_model = tf.keras.Model(
     inputs=backbone.input,
-    outputs=[conv_layer.output, backbone.output]
+    outputs=[en_conv_layer.output, backbone.output]
+)
+cnn_conv_layer = cnn_model.get_layer("conv2d_2")
+gradcam_cnn_model = tf.keras.Model(
+    inputs=cnn_model.input,
+    outputs=[cnn_conv_layer.output, cnn_model.output]
 )
 
 def make_gradcam_heatmap(img_array, gradcam_model, pred_index=None):
@@ -74,9 +81,15 @@ def grade_card(full_model, gradcam_model):
     img_back  = cv2.resize(back_restored,  (img_size[0] // 2, img_size[1]))
 
     combined     = cv2.hconcat([img_front, img_back])
-    #combined_pre = preprocess_input(combined.astype(np.float32))
-    img_array    = np.expand_dims(combined, axis=0)  # (1, 366, 480, 3)
+    if "efficientnet" in full_model.name.lower():
+        #img_array = preprocess_input(combined.astype(np.float32))
+        img_array = np.expand_dims(combined, axis=0)
+    else:
+        combined_pre = combined / 255.0
+        img_array = np.expand_dims(combined_pre, axis=0)
 
+    #combined_pre = preprocess_input(combined.astype(np.float32))
+    #img_array    = np.expand_dims(combined, axis=0)  # (1, 366, 480, 3)
     # grade_card uses full_model for prediction, gradcam_model for heatmaps
     predictions = full_model.predict(img_array, verbose=0)
     grade = int(np.argmax(predictions[0])) + 1
@@ -120,4 +133,7 @@ def grade_card(full_model, gradcam_model):
 
 while True:
     get_input()
-    grade_card(full_model, gradcam_model)
+    print("EfficientNetV2-B0 Model")
+    grade_card(efficient_model, gradcam_efficient_model)
+    print("Normal CNN Model")
+    grade_card(cnn_model, gradcam_cnn_model)
