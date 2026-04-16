@@ -13,21 +13,24 @@ img_size = [480, 366]
 efficient_model    = saving.load_model("PokemonGrader_EfficientNetV2B0_V2-Model.keras")
 cnn_model = saving.load_model("Pokemon_Grading_CNN-Model.keras")
 
-
+#EfficientNet Model
 backbone      = efficient_model.get_layer("efficientnetv2-b0")
 en_conv_layer    = backbone.get_layer("top_activation")
 
-# Build within backbone's own graph — avoids the cross-graph Keras 3 error
+#GradCam for EfficientNet Model
 gradcam_efficient_model = tf.keras.Model(
     inputs=backbone.input,
     outputs=[en_conv_layer.output, backbone.output]
 )
+
+#GradCam for CNN Model
 cnn_conv_layer = cnn_model.get_layer("conv2d_2")
 gradcam_cnn_model = tf.keras.Model(
     inputs=cnn_model.input,
     outputs=[cnn_conv_layer.output, cnn_model.output]
 )
 
+#GradCam from Keras website and altered to fit our code
 def make_gradcam_heatmap(img_array, gradcam_model, pred_index=None):
     img_t = tf.cast(img_array, tf.float32)
 
@@ -84,17 +87,11 @@ def grade_card(model, gradcam_model,efficient):
     front_restored = img_front[:, :half_w]
     back_restored = img_back[:, :half_w]
 
-    # (Optional) show them
-    # cv2.imshow("Front Restored", front_restored)
-    # cv2.imshow("Back Restored", back_restored)
-
     img_front = cv2.resize(front_restored, (img_size[0] // 2, img_size[1]))
     img_back  = cv2.resize(back_restored,  (img_size[0] // 2, img_size[1]))
 
     combined     = cv2.hconcat([img_front, img_back])
-    #img_array = np.expand_dims(combined, axis=0)
     if efficient:
-        #img_array = preprocess_input(combined.astype(np.float32))
         img_array = np.expand_dims(combined, axis=0)
     else:
         combined_pre = combined / 255.0

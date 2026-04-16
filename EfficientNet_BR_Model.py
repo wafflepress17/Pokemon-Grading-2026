@@ -103,7 +103,7 @@ base_model = EfficientNetV2B0(
     input_tensor=None,
     input_shape=(366,480,3), #Input requirements
     pooling=None,
-    include_preprocessing=True, #No preprocessing_input(img) needed because model does it automatically
+    include_preprocessing=True,
     name="efficientnetv2-b0",
 )
 
@@ -181,7 +181,7 @@ within_1_acc  = np.mean(np.abs(y_pred - y_test_int) <= 1)
 print(f"Exact grade accuracy:  {exact_acc*100:.1f}%")
 print(f"Within ±1 grade:       {within_1_acc*100:.1f}%")
 
-# Confusion matrix — same as your code
+# Confusion matrix
 conf_matrix = metrics.confusion_matrix(y_test_int, y_pred)
 print("Confusion Matrix:")
 print(conf_matrix)

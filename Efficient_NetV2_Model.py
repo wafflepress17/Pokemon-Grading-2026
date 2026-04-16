@@ -83,7 +83,6 @@ augmented_X = []
 augmented_y = []
 
 for i in range(len(X_tr)): #Augmenting the cards and appending it
-    # Always keep the original
     augmented_X.append(X_tr[i])
     augmented_y.append(y_tr[i])
 
@@ -138,7 +137,7 @@ hist = model.fit(
     validation_data=(X_val, y_val)
 )
 
-#After hist1 completes, unfreeze last layers for fine tuning
+#After hist completes, unfreeze last layers for fine tuning
 base_model.trainable = True #Learns pokemon card features too
 for layer in base_model.layers[:-30]: #Last 30 layers
     layer.trainable = False   #Keep early layers frozen
@@ -167,10 +166,8 @@ plt.show()
 test_loss, test_acc = model.evaluate(X_test, y_test, verbose=2)
 print(f"Test loss: {test_loss}  Test accuracy: {test_acc}")
 
-# Predictions — argmax instead of > 0.5
 y_pred = np.argmax(model.predict(X_test), axis=1)
 
-# Confusion matrix — same as your code
 conf_matrix = metrics.confusion_matrix(y_test, y_pred)
 print("Confusion Matrix:")
 print(conf_matrix)
