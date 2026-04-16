@@ -41,9 +41,6 @@ for u in grade_list: #Reading all the images and categorising them
 
         combined = cv2.hconcat([img_front, img_back]) # Horizontally combine
 
-        # Delete
-        # combined = preprocess_input(combined)
-
         X.append(combined) #Append combined images
         y.append((u - minus_label))
 X = np.array(X)
